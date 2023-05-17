@@ -3,7 +3,13 @@ const asyncHandler = require("express-async-handler");
 
 const createArticle = asyncHandler(async (req, res) => {
   try {
-    const newArticle = await Article.create(req.body);
+    const { title, tags, content } = req.body;
+    const newArticle = await Article.create({
+      title,
+      content,
+      tags,
+      author: req.user._id,
+    });
     res.json(newArticle);
   } catch (error) {
     throw new Error(error);
@@ -22,8 +28,48 @@ const getarticle = asyncHandler(async (req, res) => {
 
 const getAllArticle = asyncHandler(async (req, res) => {
   try {
-    const getallArticles = await Article.find();
-    res.json(getallArticles);
+    // Filtering products
+    const queryObj = { ...req.query };
+    const excludeFields = ["page", "sort", "limit", "fields"];
+    excludeFields.forEach((el) => delete queryObj[el]);
+    let queryStr = JSON.stringify(queryObj);
+    queryStr = queryStr.replace(/\b(gte|gt|lte|lt)\b/g, (match) => `$${match}`);
+
+    let query = Article.find(JSON.parse(queryStr)).populate({
+      path: "author",
+      select: "firstname lastname",
+    });
+
+    // Sorting
+
+    if (req.query.sort) {
+      const sortBy = req.query.sort.split(",").join(" ");
+      query = query.sort(sortBy);
+    } else {
+      query = query.sort("-createdAt");
+    }
+
+    // limiting the fields
+
+    if (req.query.fields) {
+      const fields = req.query.fields.split(",").join(" ");
+      query = query.select(fields);
+    } else {
+      query = query.select("-__v");
+    }
+
+    // pagination
+    const page = req.query.page;
+    const limit = req.query.limit;
+    const skip = (page - 1) * limit;
+    query = query.skip(skip).limit(limit);
+    if (req.query.page) {
+      const articleCount = await Article.countDocuments();
+      if (skip >= articleCount) throw new Error("This Page does not exists");
+    }
+
+    const article = await query;
+    res.json(article);
   } catch (error) {
     throw new Error(error);
   }

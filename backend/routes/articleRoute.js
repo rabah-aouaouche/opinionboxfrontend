@@ -6,8 +6,9 @@ const {
   updateArticle,
   deleteArticle,
 } = require("../controllers/articleCtrl");
+const { authMiddleware } = require("../middlewares/authMiddleware");
 const router = express.Router();
-
+router.use(authMiddleware);
 router.post("/", createArticle);
 router.get("/:id", getarticle);
 router.get("/", getAllArticle);
